@@ -24,6 +24,8 @@ const { Configuration, OpenAIApi } = require("openai");
 // defineProps<{ msg: string }>()
 const apiKey = ref<string>('')
 const showApiInput = ref<boolean>(false)
+const notice = ref<string>('')
+const showNotice = ref<boolean>(false)
 // add your script here
 let cnLines = ref<string[]>([])
 let enLines = ref<string[]>([])
@@ -39,12 +41,18 @@ const translatedTextParts = ref<string[]>([])
 const isTranslating = ref<boolean>(false)
 const translatingPartIndex = ref<Number>(-1)
 const prompt = "You are a professional web novel translator, translate my Chinese paragraphs into English in the form of a novel, DO NOT remove line breaks. While maintaining accuracy, pay attention to keeping the sentences fluent and literary, and ensure clear character references. Unless explicitly stated, assume all characters are female and use the pronouns She/Her, here is the text:"
-const configuration = new Configuration({
-  apiKey: apiKey.value,
-});
-const openai = new OpenAIApi(configuration);
 
 async function translate() {
+  if (apiKey.value === '') {
+    showNotice.value = true
+    notice.value = "Please privide API KEY"
+    return
+  }
+  showNotice.value = false
+  const configuration = new Configuration({
+    apiKey: apiKey.value,
+  });
+  const openai = new OpenAIApi(configuration);
   if (rawTextParts.value.length === 0) {
     splitRawContent()
   }
@@ -52,11 +60,12 @@ async function translate() {
   for (let i = 0; i < rawTextParts.value.length; i++) {
     translatingPartIndex.value = i
     const completion = await openai.createChatCompletion({
-      model: "gpt-4",
+      model: "gpt-3.5-turbo",
       messages: [{ role: "user", content: prompt + rawTextParts.value[i] }],
     });
     let message = completion.data.choices[0].message.content
     translatedTextParts.value.push(message)
+    enLines.value.push(message)
     if (enText?.value) {
       enText.value.value = enText.value.value + '\n' + message;
     }
@@ -87,13 +96,11 @@ function displayENLineNumbers() {
 }
 function onCNScroll() {
   if (cnLineNumber.value && cnText.value) {
-    console.log("onScroll", cnText.value.scrollTop)
     cnLineNumber.value.scrollTop = cnText.value.scrollTop
   }
 }
 function onENScroll() {
   if (enLineNumber.value && enText.value) {
-    console.log("onScroll", enText.value.scrollTop)
     enLineNumber.value.scrollTop = enText.value.scrollTop
   }
 }
@@ -101,12 +108,26 @@ function onENScroll() {
 function onPasteCNContent(event: ClipboardEvent) {
   const pasteContent = event?.clipboardData?.getData("text/plain") ?? ""
   cnLines.value = pasteContent.split(/\r?\n/).map((line: string) => line.trim()).filter((line: string) => line !== '')
-  // updateLineNumbers()
+  displayCNLineNumbers()
+}
+
+function onChangeCNContent() {
+  if (cnText.value) {
+    cnLines.value = cnText.value.value.split(/\r?\n/).map((line: string) => line.trim()).filter((line: string) => line !== '')
+    displayCNLineNumbers()
+  }
 }
 
 function onPasteENContent(event: ClipboardEvent) {
   const pasteContent = event?.clipboardData?.getData("text/plain") ?? ""
   enLines.value = pasteContent.split(/\r?\n/).map((line: string) => line.trim()).filter((line: string) => line !== '')
+  displayENLineNumbers()
+}
+function onChangeENContent() {
+  if (enText.value) {
+    enLines.value = enText.value.value.split(/\r?\n/).map((line: string) => line.trim()).filter((line: string) => line !== '')
+    displayENLineNumbers()
+  }
 }
 
 function clearAll() {
@@ -121,46 +142,48 @@ function clearAll() {
   }
   cnLines.value = []
   enLines.value = []
+  rawTextParts.value = []
+  translatedTextParts.value = []
 }
 function loadText() {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.txt';
   input.addEventListener('change', (event) => {
-    const reader = new FileReader();
-    const target = event.target as HTMLInputElement;
-    const file = target.files?.[0];
+    const reader = new FileReader()
+    const target = event.target as HTMLInputElement
+    const file = target.files?.[0]
     if (file) {
-      reader.readAsText(file);
+      reader.readAsText(file)
       reader.addEventListener('load', (event) => {
-        const content = event.target?.result as string;
-        cnLines.value = content?.split(/\r?\n/).map((line: string) => line.trim()).filter((line: string) => line.trim() !== '') ?? [];
+        const content = event.target?.result as string
+        cnLines.value = content?.split(/\r?\n/).map((line: string) => line.trim()).filter((line: string) => line.trim() !== '') ?? []
         if (cnText?.value) {
-          cnText.value.value = content ?? [];
+          cnText.value.value = content ?? []
         }
-      });
+      })
     }
 
-  });
-  input.click();
+  })
+  input.click()
 }
 
 
 function removeEmptyLines() {
   if (cnText?.value) {
-    cnText.value.value = cnLines.value.join('\n');
+    cnText.value.value = cnLines.value.join('\n')
   }
   if (enText?.value) {
-    enText.value.value = enLines.value.join('\n');
+    enText.value.value = enLines.value.join('\n')
   }
 }
 
 function addEmptyLines() {
   if (cnText?.value) {
-    cnText.value.value = cnLines.value.join('\n\n');
+    cnText.value.value = cnLines.value.join('\n\n')
   }
   if (enText?.value) {
-    enText.value.value = enLines.value.join('\n\n');
+    enText.value.value = enLines.value.join('\n\n')
   }
 }
 
@@ -208,6 +231,8 @@ function split() {
     if (enText?.value) {
       enText.value.value = enLines.join('\n\n');
     }
+    displayCNLineNumbers()
+    displayENLineNumbers()
   }
 }
 
@@ -271,13 +296,13 @@ function copyPart(part: string) {
       </div>
       <div class="w-2/5 flex">
         <textarea ref="cnText" class="w-full bg-gray-200 border border-gray-400" rows="15" wrap="off"
-          @paste="onPasteCNContent" @input="displayCNLineNumbers()" @scroll="onCNScroll()"></textarea>
+          @paste="onPasteCNContent" @input="onChangeCNContent" @scroll="onCNScroll()"></textarea>
         <pre ref="cnLineNumber" class="lines bg-gray-100"></pre>
       </div>
       <div class="w-2/5 flex">
         <pre ref="enLineNumber" class="lines bg-gray-100"></pre>
         <textarea ref="enText" class="w-full bg-gray-200 border border-gray-400" rows="15" wrap="off"
-          @paste="onPasteENContent" @input="displayENLineNumbers()" @scroll="onENScroll()"></textarea>
+          @paste="onPasteENContent" @input="onChangeENContent" @scroll="onENScroll()"></textarea>
       </div>
     </div>
     <p class="text-left text-base">Raw Content splited:</p>
@@ -290,6 +315,7 @@ function copyPart(part: string) {
         <!-- <button @click="handleClick">{{ button }}</button> -->
       </template>
     </div>
+    <p class="text-left text-base" v-show="showNotice">{{ notice }}</p>
     <p class="text-left text-base" v-show="isTranslating">Translating part {{ translatingPartIndex }}... Please wait...
     </p>
     <div class="flex mb-2 mt-2">
