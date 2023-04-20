@@ -59,11 +59,18 @@ async function translate() {
   isTranslating.value = true
   for (let i = 0; i < rawTextParts.value.length; i++) {
     translatingPartIndex.value = i
+    const currentTranslatePart = rawTextParts.value[i]
     const completion = await openai.createChatCompletion({
       model: "gpt-3.5-turbo",
-      messages: [{ role: "user", content: prompt + rawTextParts.value[i] }],
+      messages: [{ role: "user", content: prompt + currentTranslatePart }],
     });
     let message = completion.data.choices[0].message.content
+    const msgLines = message.split(/\r?\n/)
+    if (msgLines.length < currentTranslatePart.split(/\r?\n/).length) {
+      for (let i = 0; i < (currentTranslatePart.split(/\r?\n/).length - msgLines.length); i++) {
+        message += "[temp]\n"        
+      }
+    }
     translatedTextParts.value.push(message)
     enLines.value.push(message)
     if (enText?.value) {
@@ -73,7 +80,9 @@ async function translate() {
 }
 
 function displayCNLineNumbers() {
-    const linesCount = cnLines.value.length;
+  if (cnText.value) {
+    const linesCount = cnText.value.value.length;
+    console.log(linesCount)
     let numbersText = "";
 
     for (let i = 1; i <= linesCount; i++) {
@@ -82,9 +91,12 @@ function displayCNLineNumbers() {
     if (cnLineNumber.value) {
       cnLineNumber.value.innerText = numbersText;
     }
+  }
 }
+
 function displayENLineNumbers() {
-    const linesCount = enLines.value.length;
+  if (enText.value) {
+    const linesCount = enText.value.value.length;
     let numbersText = "";
 
     for (let i = 1; i <= linesCount; i++) {
@@ -93,6 +105,7 @@ function displayENLineNumbers() {
     if (enLineNumber.value) {
       enLineNumber.value.innerText = numbersText;
     }
+  }
 }
 function onCNScroll() {
   if (cnLineNumber.value && cnText.value) {
@@ -176,6 +189,8 @@ function removeEmptyLines() {
   if (enText?.value) {
     enText.value.value = enLines.value.join('\n')
   }
+  displayCNLineNumbers()
+  displayENLineNumbers()
 }
 
 function addEmptyLines() {
@@ -185,6 +200,8 @@ function addEmptyLines() {
   if (enText?.value) {
     enText.value.value = enLines.value.join('\n\n')
   }
+  displayCNLineNumbers()
+  displayENLineNumbers()
 }
 
 function splitRawContent() {
@@ -219,24 +236,24 @@ function split() {
   if (mergeText?.value) {
     const mergedContent = mergeText.value.value.trim();
     const mergedLines = mergedContent.split(/\r?\n/).map(line => line.trim()).filter(line => line.trim() !== '');
-    const cnLines = [];
-    const enLines = [];
+    cnLines.value = []
+    enLines.value = []
     for (let i = 0; i < mergedLines.length; i += 2) {
-      cnLines.push(mergedLines[i]);
-      enLines.push(mergedLines[i + 1]);
+      cnLines.value.push(mergedLines[i]);
+      enLines.value.push(mergedLines[i + 1]);
     }
     if (cnText?.value) {
-      cnText.value.value = cnLines.join('\n\n');
+      cnText.value.value = cnLines.value.join('\n');
     }
     if (enText?.value) {
-      enText.value.value = enLines.join('\n\n');
+      enText.value.value = enLines.value.join('\n');
     }
     displayCNLineNumbers()
     displayENLineNumbers()
   }
 }
 
-function copyPart(part: string) {
+function copy(part: string) {
   navigator.clipboard.writeText(part)
 }
 
@@ -258,11 +275,15 @@ function copyPart(part: string) {
     </div>
     <div class="flex w-full mb-2" id="textarea-container">
       <div class="w-1/5"></div>
-      <div class="w-2/5">
-        <p class="text-left">Line Count:{{ cnLines.length }}</p>
+      <div class="w-2/5 flex justify-between">
+        <p class="text-left mr-2">Line Count:{{ cnLines.length }}</p>
+        <button class="btn btn-primary text-sm mr-2 bg-green-500 py-1 px-1 rounded text-white"
+          @click="copy(cnText?.value??'')">Copy</button>
       </div>
-      <div class="w-2/5">
-        <p class="text-left">Line Count:{{ enLines.length }}</p>
+      <div class="w-2/5 flex justify-between">
+        <p class="text-left mr-2">Line Count:{{ enLines.length }}</p>
+        <button class="btn btn-primary text-sm mr-2 bg-green-500 py-1 px-1 rounded text-white"
+          @click="copy(enText?.value??'')">Copy</button>
       </div>
     </div>
     <div class="flex w-full mb-2" id="textarea-container">
@@ -295,20 +316,20 @@ function copyPart(part: string) {
         </div>
       </div>
       <div class="w-2/5 flex">
-        <textarea ref="cnText" class="w-full bg-gray-200 border border-gray-400" rows="15" wrap="off"
+        <textarea ref="cnText" class="w-full bg-gray-200 border border-gray-400 p-2" rows="15" wrap="off"
           @paste="onPasteCNContent" @input="onChangeCNContent" @scroll="onCNScroll()"></textarea>
         <pre ref="cnLineNumber" class="lines bg-gray-100"></pre>
       </div>
       <div class="w-2/5 flex">
         <pre ref="enLineNumber" class="lines bg-gray-100"></pre>
-        <textarea ref="enText" class="w-full bg-gray-200 border border-gray-400" rows="15" wrap="off"
+        <textarea ref="enText" class="w-full bg-gray-200 border border-gray-400 p-2" rows="15" wrap="off"
           @paste="onPasteENContent" @input="onChangeENContent" @scroll="onENScroll()"></textarea>
       </div>
     </div>
     <p class="text-left text-base">Raw Content splited:</p>
     <div class="flex mb-2 mt-2">
       <template v-for="part in rawTextParts">
-        <div @click="copyPart(part)">
+        <div @click="copy(part)">
           <p class="bg-blue-100 mr-1 text-left">{{ part.slice(0, 20) + '...' }}</p>
           <p class="bg-blue-100 mr-1 text-left">{{ '...' + part.slice(-20) }}</p>
         </div>
@@ -320,14 +341,14 @@ function copyPart(part: string) {
     </p>
     <div class="flex mb-2 mt-2">
       <template v-for="part in translatedTextParts">
-        <div @click="copyPart(part)">
+        <div @click="copy(part)">
           <p class="bg-blue-100 mr-1 text-left">{{ part.slice(0, 50) + '...' }}</p>
           <p class="bg-blue-100 mr-1 text-left">{{ '...' + part.slice(-50) }}</p>
         </div>
         <!-- <button @click="handleClick">{{ button }}</button> -->
       </template>
     </div>
-    <textarea ref="mergeText" class="w-full bg-gray-200 border border-gray-400 mb-2" rows="15"></textarea>
+    <textarea ref="mergeText" class="w-full bg-gray-200 border border-gray-400 mb-2 p-2" rows="15"></textarea>
     <!-- <h2 class="font-bold text-xl mb-8 mt-8 text-center">捐赠开发者</h2>
     <div class="flex px-20 mx-10">
       <img src="/static/img/img_donation_alipay.png" alt="" class="w-2/5">
@@ -340,7 +361,7 @@ function copyPart(part: string) {
   max-height: 400px;
 }
 pre.lines {
-  padding-top: 3px;
+  padding-top: 0.6rem;
   overflow-y: scroll;
   user-select: none;
 }
