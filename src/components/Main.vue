@@ -48,7 +48,7 @@ async function translate() {
     notice.value = "Please privide API KEY"
     return
   }
-  showNotice.value = false
+  notice.value = ''
   const configuration = new Configuration({
     apiKey: apiKey.value,
   });
@@ -65,10 +65,12 @@ async function translate() {
       messages: [{ role: "user", content: prompt + currentTranslatePart }],
     });
     let message = completion.data.choices[0].message.content
-    const msgLines = message.split(/\r?\n/)
-    if (msgLines.length < currentTranslatePart.split(/\r?\n/).length) {
-      for (let i = 0; i < (currentTranslatePart.split(/\r?\n/).length - msgLines.length); i++) {
-        message += "[temp]\n"        
+    const msgLines = message.split(/\n\n/).filter((line: string) => line !== '')
+    const currentTranslatePartLines = currentTranslatePart.split(/\n\n/)
+    console.log(msgLines.length, currentTranslatePartLines.length)
+    if (msgLines.length < currentTranslatePartLines.length) {
+      for (let i = 0; i < (currentTranslatePartLines.length - msgLines.length); i++) {
+        message += "\n[temp]"        
       }
     }
     translatedTextParts.value.push(message)
@@ -77,15 +79,17 @@ async function translate() {
       enText.value.value = enText.value.value + '\n' + message;
     }
   }
+  notice.value = 'Translated!'
+  isTranslating.value = false
 }
 
 function displayCNLineNumbers() {
   if (cnText.value) {
-    const linesCount = cnText.value.value.length;
+    const linesCount = cnLines.value.length;
     console.log(linesCount)
     let numbersText = "";
 
-    for (let i = 1; i <= linesCount; i++) {
+    for (let i = 1; i < linesCount; i++) {
         numbersText += i + (i === linesCount ? "" : "\n");
     }
     if (cnLineNumber.value) {
@@ -96,10 +100,10 @@ function displayCNLineNumbers() {
 
 function displayENLineNumbers() {
   if (enText.value) {
-    const linesCount = enText.value.value.length;
+    const linesCount = enLines.value.length;
     let numbersText = "";
 
-    for (let i = 1; i <= linesCount; i++) {
+    for (let i = 1; i < linesCount; i++) {
         numbersText += i + (i === linesCount ? "" : "\n");
     }
     if (enLineNumber.value) {
@@ -170,7 +174,7 @@ function loadText() {
       reader.readAsText(file)
       reader.addEventListener('load', (event) => {
         const content = event.target?.result as string
-        cnLines.value = content?.split(/\r?\n/).map((line: string) => line.trim()).filter((line: string) => line.trim() !== '') ?? []
+        cnLines.value = content?.split(/\n\n/).map((line: string) => line.trim()).filter((line: string) => line.trim() !== '') ?? []
         if (cnText?.value) {
           cnText.value.value = content ?? []
         }
@@ -208,10 +212,10 @@ function splitRawContent() {
   let currentContent = '';
   for (let i = 0; i < cnLines.value.length; i++) {
     if (currentContent.length + cnLines.value[i].length <= 800) {
-      currentContent += cnLines.value[i] + '\n';
+      currentContent += cnLines.value[i] + '\n\n';
     } else {
       rawTextParts.value.push(currentContent.trim());
-      currentContent = cnLines.value[i] + '\n';
+      currentContent = cnLines.value[i] + '\n\n';
     }
   }
   if (currentContent.trim() !== '') {
@@ -235,7 +239,7 @@ function merge() {
 function split() {
   if (mergeText?.value) {
     const mergedContent = mergeText.value.value.trim();
-    const mergedLines = mergedContent.split(/\r?\n/).map(line => line.trim()).filter(line => line.trim() !== '');
+    const mergedLines = mergedContent.split(/\n\n/).map(line => line.trim()).filter(line => line.trim() !== '');
     cnLines.value = []
     enLines.value = []
     for (let i = 0; i < mergedLines.length; i += 2) {
