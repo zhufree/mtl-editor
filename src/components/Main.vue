@@ -59,22 +59,23 @@ async function translate() {
   isTranslating.value = true
   for (let i = 0; i < rawTextParts.value.length; i++) {
     translatingPartIndex.value = i
-    const currentTranslatePart = rawTextParts.value[i]
+    const currentRawPart = rawTextParts.value[i]
     const completion = await openai.createChatCompletion({
       model: "gpt-3.5-turbo",
-      messages: [{ role: "user", content: prompt + currentTranslatePart }],
+      messages: [{ role: "user", content: prompt + currentRawPart }],
     });
     let message = completion.data.choices[0].message.content
     const msgLines = message.split(/\n\n/).filter((line: string) => line !== '')
-    const currentTranslatePartLines = currentTranslatePart.split(/\n\n/)
-    console.log(msgLines.length, currentTranslatePartLines.length)
-    if (msgLines.length < currentTranslatePartLines.length) {
-      for (let i = 0; i < (currentTranslatePartLines.length - msgLines.length); i++) {
-        message += "\n[temp]"        
+    const currentRawPartLines = currentRawPart.split(/\n\n/)
+    console.log(msgLines.length, currentRawPartLines.length)
+    if (msgLines.length < currentRawPartLines.length) {
+      for (let i = 0; i < (currentRawPartLines.length - msgLines.length); i++) {
+        message += "\n[temp]"
+        msgLines.push("[temp]")
       }
     }
     translatedTextParts.value.push(message)
-    enLines.value.push(message)
+    enLines.value = enLines.value.concat(msgLines)
     if (enText?.value) {
       enText.value.value = enText.value.value + '\n' + message;
     }
@@ -275,7 +276,7 @@ function copy(part: string) {
         {{ showApiInput ? "OK" : "Set GPT API KEY" }}
       </button>
       <input type="text" v-model="apiKey" v-show="showApiInput" class="border bg-gray-100">
-      <p v-show="apiKey !== ''" class="text-left">Your key: {{ apiKey }}</p>
+      <p v-show="!showApiInput && apiKey !== ''" class="text-left">Your key: {{ apiKey }}</p>
     </div>
     <div class="flex w-full mb-2" id="textarea-container">
       <div class="w-1/5"></div>
